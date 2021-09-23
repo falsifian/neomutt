@@ -33,6 +33,8 @@ struct Address;
 struct Email;
 struct ThreadsContext;
 
+#define mutt_numeric_cmp(a,b) ((a) < (b) ? -1 : ((a) > (b) ? 1 : 0))
+
 /**
  * typedef sort_t - Prototype for generic comparison function, compatible with qsort
  * @param a First item
