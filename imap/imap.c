@@ -2204,8 +2204,6 @@ static int imap_tags_edit(struct Mailbox *m, const char *tags, struct Buffer *bu
   }
 
   buf_reset(buf);
-  if (tags)
-    buf_strcpy(buf, tags);
 
   if (mw_get_field("Tags: ", buf, MUTT_COMP_NO_FLAGS, HC_OTHER, NULL, NULL) != 0)
     return -1;
@@ -2258,48 +2256,75 @@ static int imap_tags_edit(struct Mailbox *m, const char *tags, struct Buffer *bu
   new_tag = buf->data; /* rewind */
   mutt_str_remove_trailing_ws(new_tag);
 
-  return !mutt_str_equal(tags, buf_string(buf));
+  return *new_tag != '\0';
 }
 
 /**
  * imap_tags_commit - Save the tags to a message - Implements MxOps::tags_commit() - @ingroup mx_tags_commit
  *
- * This method update the server flags on the server by
- * removing the last know custom flags of a header
- * and adds the local flags
- *
- * If everything success we push the local flags to the
- * last know custom flags (flags_remote).
- *
- * Also this method check that each flags is support by the server
- * first and remove unsupported one.
+ * This method updates the keywords on the server according to the changes
+ * specified in buf. It does not update the local flags, instead waiting for
+ * the server to send the updated flags.
  */
 static int imap_tags_commit(struct Mailbox *m, struct Email *e, const char *buf)
 {
-  char uid[11] = { 0 };
+  unsigned int uid = imap_edata_get(e)->uid;
 
   struct ImapAccountData *adata = imap_adata_get(m);
 
   if (*buf == '\0')
-    buf = NULL;
+    return 0;
 
   if (!(adata->mailbox->rights & MUTT_ACL_WRITE))
     return 0;
 
-  snprintf(uid, sizeof(uid), "%u", imap_edata_get(e)->uid);
+  /* TODO: deal with tags that are both added and removed */
 
-  /* Remove old custom flags */
-  if (imap_edata_get(e)->flags_remote)
-  {
+  char *tokenbuf = mutt_str_dup(buf);
+  char *next_tag;
+  struct Buffer *to_add = buf_pool_get();
+  struct Buffer *to_remove = buf_pool_get();
+  for (next_tag = tokenbuf; next_tag;) {
+    char *tag_start = next_tag;
+    strsep(&next_tag, " ");
+
+    char op = *tag_start;
+    if (op != '+' && op != '-') {
+      /* TODO: use a goto, here and elsewhere? */
+      /* TODO: give feedback to the user */
+      buf_pool_release(&to_add);
+      buf_pool_release(&to_remove);
+      FREE(&tokenbuf);
+      return -1;
+    }
+    ++tag_start;
+
+    struct Buffer *dest = (op == '+') ? to_add : to_remove;
+    buf_join_str(dest, tag_start, ' ');
+  }
+  FREE(&tokenbuf);
+  
+  /* Remove keywords in to_remove */
+  if (!buf_is_empty(to_remove)) {
     struct Buffer *cmd = buf_pool_get();
-    buf_addstr(cmd, "UID STORE ");
-    buf_addstr(cmd, uid);
-    buf_addstr(cmd, " -FLAGS.SILENT (");
-    buf_addstr(cmd, imap_edata_get(e)->flags_remote);
-    buf_addstr(cmd, ")");
+    buf_add_printf(cmd, "UID STORE %u -FLAGS (%s)", uid, to_remove->data);
+    buf_pool_release(&to_remove);
 
-    /* Should we return here, or we are fine and we could
-     * continue to add new flags */
+    int rc = imap_exec(adata, buf_string(cmd), IMAP_CMD_NO_FLAGS);
+    buf_pool_release(&cmd);
+    if (rc != IMAP_EXEC_SUCCESS)
+    {
+      buf_pool_release(&to_add);
+      return -1;
+    }
+  }
+
+  /* Add keywords in to_add */
+  if (!buf_is_empty(to_add)) {
+    struct Buffer *cmd = buf_pool_get();
+    buf_add_printf(cmd, "UID STORE %u +FLAGS (%s)", uid, to_add->data);
+    buf_pool_release(&to_add);
+
     int rc = imap_exec(adata, buf_string(cmd), IMAP_CMD_NO_FLAGS);
     buf_pool_release(&cmd);
     if (rc != IMAP_EXEC_SUCCESS)
@@ -2308,34 +2333,8 @@ static int imap_tags_commit(struct Mailbox *m, struct Email *e, const char *buf)
     }
   }
 
-  /* Add new custom flags */
-  if (buf)
-  {
-    struct Buffer *cmd = buf_pool_get();
-    buf_addstr(cmd, "UID STORE ");
-    buf_addstr(cmd, uid);
-    buf_addstr(cmd, " +FLAGS.SILENT (");
-    buf_addstr(cmd, buf);
-    buf_addstr(cmd, ")");
+  /* We'll update the local storage when the server tells us the new FLAGS. */
 
-    int rc = imap_exec(adata, buf_string(cmd), IMAP_CMD_NO_FLAGS);
-    buf_pool_release(&cmd);
-    if (rc != IMAP_EXEC_SUCCESS)
-    {
-      mutt_debug(LL_DEBUG1, "fail to add new flags\n");
-      return -1;
-    }
-  }
-
-  /* We are good sync them */
-  mutt_debug(LL_DEBUG1, "NEW TAGS: %s\n", buf);
-  driver_tags_replace(&e->tags, buf);
-  FREE(&imap_edata_get(e)->flags_remote);
-  struct Buffer *flags_remote = buf_pool_get();
-  driver_tags_get_with_hidden(&e->tags, flags_remote);
-  imap_edata_get(e)->flags_remote = buf_strdup(flags_remote);
-  buf_pool_release(&flags_remote);
-  imap_msg_save_hcache(m, e);
   return 0;
 }
 
