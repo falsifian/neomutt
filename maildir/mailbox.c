@@ -649,9 +649,9 @@ static enum MxStatus maildir_check(struct Mailbox *m)
         const char c_maildir_field_delimiter = *cc_maildir_field_delimiter();
         char *p = strrchr(e->path, c_maildir_field_delimiter);
         if (p && mutt_str_startswith(p + 1, "2,")) {
-          p = strchr(p, ',');
+          p = strchr(p + 3, ',');
           if (p) {
-            edata->custom_flags = mutt_str_dup(p + 1);
+            edata->nonstandard_fields = mutt_str_dup(p + 1);
           }
         }
       }
