@@ -34,6 +34,7 @@
  * Send/receive commands to/from an IMAP server
  */
 
+#include <assert.h>
 #include "config.h"
 #include <ctype.h>
 #include <errno.h>
@@ -988,6 +989,7 @@ static void cmd_parse_exists(struct ImapAccountData *adata, const char *pn)
   }
 
   struct ImapMboxData *mdata = adata->mailbox->mdata;
+  assert(mdata != NULL);
 
   /* new mail arrived */
   if (count < imap_msn_highest(&mdata->msn))
@@ -1024,6 +1026,9 @@ static int cmd_handle_untagged(struct ImapAccountData *adata)
   const bool c_imap_server_noise = cs_subset_bool(NeoMutt->sub, "imap_server_noise");
   if ((adata->state >= IMAP_SELECTED) && isdigit((unsigned char) *s))
   {
+    /* Assumed by cmd_parse_exits: */
+    assert(adata->mailbox->mdata != NULL);
+
     /* pn vs. s: need initial seqno */
     pn = s;
     s = imap_next_word(s);
