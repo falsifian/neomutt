@@ -813,17 +813,12 @@ void index_g(const struct ExpandoNode *node, void *data, MuttFormatFlags flags,
   if (flags & MUTT_FORMAT_INDEX)
     node_expando_set_color(node, MT_COLOR_INDEX_TAGS);
   if (hfi->mailbox->type == MUTT_MAILDIR) {
-    /* Personal customization: in maildirs, give the part after the next comma
-       after :2, in maildir filename. */
-    char *flags = maildir_edata_get(e)->custom_flags;
-    if (flags == NULL) {
-      return;
+    /* Personal customization: in maildirs, show "non-standard fields" (the part
+     * after the next comma after :2, in maildir filename). */
+    char *nonstandard = maildir_edata_get(e)->nonstandard_fields;
+    if (nonstandard != NULL) {
+      buf_strcpy(buf, nonstandard);
     }
-    char *suffix = strchr(flags, ',');
-    if (suffix == NULL) {
-      return;
-    }
-    buf_strcpy(buf, suffix + 1);
   } else {
     driver_tags_get_transformed(&e->tags, buf);
   }

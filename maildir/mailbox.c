@@ -97,8 +97,9 @@ void maildir_parse_flags(struct Email *e, const char *path)
 
     mutt_str_replace(&edata->custom_flags, p);
     q = edata->custom_flags;
+    FREE(&edata->nonstandard_fields);
 
-    while (*p)
+    while (*p && edata->nonstandard_fields == NULL)
     {
       switch (*p)
       {
@@ -124,6 +125,10 @@ void maildir_parse_flags(struct Email *e, const char *path)
           }
           break;
         }
+
+        case ',': // Start of non-standard fields
+          mutt_str_replace(&edata->nonstandard_fields, p+1);
+          break;
 
         default:
           *q++ = *p;
@@ -634,15 +639,20 @@ static enum MxStatus maildir_check(struct Mailbox *m)
       /* message already exists, merge flags */
 
       /* check to see if the message has moved to a different
-       * subdirectory.  If so, update the associated filename.  */
+       * subdirectory.  If so, update the associated filename and the
+       * non-standard fields.  */
       if (!mutt_str_equal(e->path, md->email->path)) {
         mutt_str_replace(&e->path, md->email->path);
+
         struct MaildirEmailData *edata = maildir_edata_get(e);
-        FREE(&edata->custom_flags);
+        FREE(&edata->nonstandard_fields);
         const char c_maildir_field_delimiter = *cc_maildir_field_delimiter();
         char *p = strrchr(e->path, c_maildir_field_delimiter);
         if (p && mutt_str_startswith(p + 1, "2,")) {
-          edata->custom_flags = mutt_str_dup(p + 3);
+          p = strchr(p, ',');
+          if (p) {
+            edata->custom_flags = mutt_str_dup(p + 1);
+          }
         }
       }
 

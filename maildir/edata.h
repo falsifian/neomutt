@@ -30,7 +30,9 @@ struct Email;
  */
 struct MaildirEmailData
 {
-  char        *custom_flags;   ///< Custom Maildir flags (e.g Dovecot labels)
+  char        *custom_flags;         ///< Custom Maildir flags (e.g Dovecot labels)
+  char        *nonstandard_fields;   ///< Non-standard fields
+                                     // https://doc.dovecot.org/admin_manual/mailbox_formats/maildir/
 };
 
 void                     maildir_edata_free(void **ptr);

@@ -69,6 +69,8 @@ static int maildir_sort_flags(const void *a, const void *b, void *sdata)
  * @param dest    Buffer for the result
  * @param destlen Length of buffer
  * @param e     Email
+ *
+ * Also includes any non-standard fields (anything after a second ",").
  */
 void maildir_gen_flags(char *dest, size_t destlen, struct Email *e)
 {
@@ -84,9 +86,13 @@ void maildir_gen_flags(char *dest, size_t destlen, struct Email *e)
    * subdirectory have the :unique string appended, regardless of whether
    * or not there are any flags.  If .old is set, we know that this message
    * will end up in the cur directory, so we include it in the following
-   * test even though there is no associated flag.  */
+   * test even though there is no associated flag.
+   *
+   * Similarly, if edata->nonstandard_fields is set, it needs to have the :...
+   * part appended. */
 
-  if (e->flagged || e->replied || e->read || e->deleted || e->old || flags)
+  if (e->flagged || e->replied || e->read || e->deleted || e->old || flags
+      || edata->nonstandard_fields != NULL)
   {
     char tmp[1024] = { 0 };
     snprintf(tmp, sizeof(tmp), "%s%s%s%s%s", e->flagged ? "F" : "", e->replied ? "R" : "",
@@ -95,7 +101,9 @@ void maildir_gen_flags(char *dest, size_t destlen, struct Email *e)
       mutt_qsort_r(tmp, strlen(tmp), 1, maildir_sort_flags, NULL);
 
     const char c_maildir_field_delimiter = *cc_maildir_field_delimiter();
-    snprintf(dest, destlen, "%c2,%s", c_maildir_field_delimiter, tmp);
+    snprintf(dest, destlen, "%c2,%s%s%s", c_maildir_field_delimiter, tmp,
+	     edata->nonstandard_fields == NULL ? "" : ",",
+	     edata->nonstandard_fields == NULL ? "" : edata->nonstandard_fields);
   }
 }
 
