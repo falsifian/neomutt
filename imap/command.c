@@ -1442,6 +1442,12 @@ int imap_cmd_idle(struct ImapAccountData *adata)
 {
   int rc;
 
+  /* Other code seems to assume that when adata->state >= IMAP_SELECTED, there's
+   * a mailbox and it has mdata. Check that here since
+   * IMAP_IDLE >= IMAP_SELECTED. */
+  assert(adata->mailbox != NULL);
+  assert(adata->mailbox->mdata != NULL);
+
   if (cmd_start(adata, "IDLE", IMAP_CMD_POLL) < 0)
   {
     cmd_handle_fatal(adata);
