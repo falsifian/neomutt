@@ -52,6 +52,7 @@
 #include "expando/lib.h"
 #include "ncrypt/lib.h"
 #include "hook.h"
+#include "maildir/edata.h"
 #include "maillist.h"
 #include "mutt_thread.h"
 #include "muttlib.h"
@@ -811,7 +812,21 @@ void index_g(const struct ExpandoNode *node, void *data, MuttFormatFlags flags,
 
   if (flags & MUTT_FORMAT_INDEX)
     node_expando_set_color(node, MT_COLOR_INDEX_TAGS);
-  driver_tags_get_transformed(&e->tags, buf);
+  if (hfi->mailbox->type == MUTT_MAILDIR) {
+    /* Personal customization: in maildirs, give the part after the next comma
+       after :2, in maildir filename. */
+    char *flags = maildir_edata_get(e)->custom_flags;
+    if (flags == NULL) {
+      return;
+    }
+    char *suffix = strchr(flags, ',');
+    if (suffix == NULL) {
+      return;
+    }
+    buf_strcpy(buf, suffix + 1);
+  } else {
+    driver_tags_get_transformed(&e->tags, buf);
+  }
 }
 
 /**
