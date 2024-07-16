@@ -635,8 +635,16 @@ static enum MxStatus maildir_check(struct Mailbox *m)
 
       /* check to see if the message has moved to a different
        * subdirectory.  If so, update the associated filename.  */
-      if (!mutt_str_equal(e->path, md->email->path))
+      if (!mutt_str_equal(e->path, md->email->path)) {
         mutt_str_replace(&e->path, md->email->path);
+        struct MaildirEmailData *edata = maildir_edata_get(e);
+	FREE(&edata->custom_flags);
+        const char c_maildir_field_delimiter = *cc_maildir_field_delimiter();
+	char *p = strrchr(e->path, c_maildir_field_delimiter);
+	if (p && mutt_str_startswith(p + 1, "2,")) {
+	  edata->custom_flags = mutt_str_dup(p + 3);
+	}
+      }
 
       /* if the user hasn't modified the flags on this message, update
        * the flags we just detected.  */
