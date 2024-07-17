@@ -1,3 +1,7 @@
+# THIS IS A PRIVATE BRANCH. DO NOT USE.
+
+I'm putting some of my own custom changes to neomutt in this branch. I'm sharing in case they're useful, but you almost certainly don't actually want to run this code as-is. -James Cook (falsifian)
+
 # This is the NeoMutt Project
 
 [![Stars](https://img.shields.io/github/stars/neomutt/neomutt.svg?style=social&label=Stars)](https://github.com/neomutt/neomutt "Give us a Star")
