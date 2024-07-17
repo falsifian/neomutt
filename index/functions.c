@@ -35,7 +35,9 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "mutt/file.h"
 #include "mutt/lib.h"
+#include "mutt/logging2.h"
 #include "config/lib.h"
 #include "email/lib.h"
 #include "core/lib.h"
@@ -50,6 +52,7 @@
 #include "imap/lib.h"
 #include "key/lib.h"
 #include "menu/lib.h"
+#include "mutt/filter.h"
 #include "ncrypt/lib.h"
 #include "nntp/lib.h"
 #include "pager/lib.h"
@@ -171,6 +174,7 @@ const struct MenuFuncOp OpIndex[] = { /* map: index */
   { "parent-message",                OP_MAIN_PARENT_MESSAGE },
   { "pipe-entry",                    OP_PIPE },
   { "pipe-message",                  OP_PIPE },
+  { "pipe-path",                     OP_PIPE_PATH },
   { "post-message",                  OP_POST },
   { "previous-new",                  OP_MAIN_PREV_NEW },
   { "previous-new-then-unread",      OP_MAIN_PREV_NEW_THEN_UNREAD },
@@ -2057,6 +2061,56 @@ static int op_pipe(struct IndexSharedData *shared, struct IndexPrivateData *priv
 }
 
 /**
+ * op_pipe_path - Pipe path to a message to a shell command - Implements ::index_function_t - @ingroup index_function_api
+ */
+static int op_pipe_path(struct IndexSharedData *shared, struct IndexPrivateData *priv, int op)
+{
+  struct Buffer *buf = buf_pool_get();
+  if (mw_get_field(_("Pipe path to command: "), buf, MUTT_COMP_NO_FLAGS,
+                   HC_EXT_COMMAND, &CompleteFileOps, NULL) != 0) {
+    buf_pool_release(&buf);
+    return FR_SUCCESS;
+  }
+
+  FILE *filter_input;
+  pid_t pid = filter_create(buf_string(buf), &filter_input, NULL, NULL, EnvList);
+  buf_pool_release(&buf);
+  if (pid < 0) {
+    mutt_perror(_("Can't create process"));
+    return FR_ERROR;
+  }
+
+  const char *mpath = mailbox_path(shared->mailbox);
+
+  struct EmailArray ea = ARRAY_HEAD_INITIALIZER;
+  ea_add_tagged(&ea, shared->mailbox_view, shared->email, priv->tag_prefix);
+  struct Email **ep = NULL;
+  ARRAY_FOREACH(ep, &ea)
+  {
+    if ((*ep)->path != NULL) {
+      fprintf(filter_input, "%s/%s\n", mpath, (*ep)->path);
+    }
+  }
+  ARRAY_FREE(&ea);
+
+  int result = FR_SUCCESS;
+  if (mutt_file_fclose(&filter_input) != 0) {
+    mutt_perror(_("Failed to close pipe"));
+    result = FR_ERROR;
+  }
+  int exit_code = filter_wait(pid);
+  if (exit_code == -1) {
+    mutt_error(_("Failed to wait"));
+    result = FR_ERROR;
+  } else if (exit_code > 0) {
+    mutt_error(_("Non-zero exit code"));
+    result = FR_ERROR;
+  }
+
+  return result;
+}
+
+/**
  * op_prev_entry - Move to the previous entry - Implements ::index_function_t - @ingroup index_function_api
  */
 static int op_prev_entry(struct IndexSharedData *shared, struct IndexPrivateData *priv, int op)
@@ -3210,6 +3264,7 @@ static const struct IndexFunction IndexFunctions[] = {
   { OP_MAIN_UNTAG_PATTERN,                  op_main_untag_pattern,                CHECK_IN_MAILBOX },
   { OP_MARK_MSG,                            op_mark_msg,                          CHECK_IN_MAILBOX | CHECK_MSGCOUNT | CHECK_VISIBLE },
   { OP_NEXT_ENTRY,                          op_next_entry,                        CHECK_IN_MAILBOX | CHECK_MSGCOUNT | CHECK_VISIBLE },
+  { OP_PIPE_PATH,                           op_pipe_path,                         CHECK_IN_MAILBOX | CHECK_MSGCOUNT | CHECK_VISIBLE },
   { OP_PIPE,                                op_pipe,                              CHECK_IN_MAILBOX | CHECK_MSGCOUNT | CHECK_VISIBLE },
   { OP_POST,                                op_post,                              CHECK_ATTACH | CHECK_IN_MAILBOX },
   { OP_PREV_ENTRY,                          op_prev_entry,                        CHECK_IN_MAILBOX | CHECK_MSGCOUNT | CHECK_VISIBLE },

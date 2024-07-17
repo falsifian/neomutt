@@ -662,6 +662,7 @@ const char *opcodes_get_name       (int op);
   /*       Attach Dialog: <op_attachment_pipe> */ \
   /*       Index: <op_pipe> */ \
   _fmt(OP_PIPE,                               N_("pipe message/attachment to a shell command")) \
+  _fmt(OP_PIPE_PATH,                          N_("pipe message path to a shell command")) \
   /* L10N: Help screen description for OP_POST */ \
   /*       Index: <op_post> */ \
   _fmt(OP_POST,                               N_("post message to newsgroup")) \
