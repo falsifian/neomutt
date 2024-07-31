@@ -1027,6 +1027,7 @@ static int cmd_handle_untagged(struct ImapAccountData *adata)
   if ((adata->state >= IMAP_SELECTED) && isdigit((unsigned char) *s))
   {
     /* Assumed by cmd_parse_exits: */
+    assert(adata->mailbox != NULL);
     assert(adata->mailbox->mdata != NULL);
 
     /* pn vs. s: need initial seqno */
